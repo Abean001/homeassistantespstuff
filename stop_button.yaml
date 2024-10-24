@@ -1,0 +1,38 @@
+esphome:
+  name: stop_button
+  platform: ESP8266
+  board: nodemcuv2
+
+wifi:
+  ssid: "ASM"
+  password: "golancers24"
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:  # Consider adding a password here for security
+
+# Emergency Stop Button Setup (on GPIO14/D5)
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO14  # GPIO14 corresponds to D5
+      mode: INPUT_PULLUP  # Internal pull-up resistor enabled
+      inverted: true      # Inverts the logic (press = LOW)
+    name: "Emergency Stop Button"
+    filters:
+      - delayed_on: 10ms  # Debounce to avoid multiple triggers
+      - delayed_off: 10ms
+    on_press:
+      then:
+        - homeassistant.event:
+            event: esphome.emergency_stop
+            data:
+              action: "stopped"
+    on_release:
+      then:
+        - homeassistant.event:
+            event: esphome.emergency_stop
+            data:
+              action: "running"
