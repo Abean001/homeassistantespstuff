@@ -1,0 +1,109 @@
+wifi:
+  ssid: "ASM"
+  password: "golacers24"
+  ap:
+    ssid: ${devicename}
+
+# Enable the captive portal for initial WiFi setup
+captive_portal:
+
+substitutions:
+  devicename: tagreader
+  friendly_name: TagReader
+
+esphome:
+  name: $devicename
+  platform: ESP8266
+  board: d1_mini
+
+# Define switches to control LED and buzzer from HA
+switch:
+  - platform: template
+    name: "${friendly_name} Buzzer Enabled"
+    id: buzzer_enabled
+    icon: mdi:volume-high
+    optimistic: true
+  - platform: template
+    name: "${friendly_name} LED Enabled"
+    id: led_enabled
+    icon: mdi:alarm-light-outline
+    optimistic: true
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  on_client_connected:
+    then:
+      - logger.log: "Client connected!"
+  services:
+    - service: rfidreader_tag_ok
+      then:
+        - rtttl.play: "beep:d=16,o=5,b=100:b"
+    - service: rfidreader_tag_ko
+      then:
+        - rtttl.play: "beep:d=8,o=5,b=100:b"
+    - service: play_rtttl
+      variables:
+        song_str: string
+      then:
+        - rtttl.play: !lambda 'return song_str;'
+
+
+
+# Enable SPI interface
+spi:
+  clk_pin: D0
+  miso_pin: D1
+  mosi_pin: D2
+
+# Configure the PN532 module
+pn532_spi:
+  id: pn532_reader
+  cs_pin: D3
+  update_interval: 2s
+  on_tag:
+    then:
+      - homeassistant.tag_scanned: !lambda 'return x;'
+      - if:
+          condition:
+            switch.is_on: buzzer_enabled
+          then:
+            - rtttl.play: "success:d=24,o=5,b=100:c,g,b"
+      - if:
+          condition:
+            switch.is_on: led_enabled
+          then:
+            - light.turn_on:
+                id: activity_led
+                brightness: 100%
+                red: 0%
+                green: 100%
+                blue: 0%
+
+# Define status sensor
+binary_sensor:
+  - platform: status
+    name: "${friendly_name} Status"
+
+# Define the buzzer output for RTTTL
+output:
+  - platform: esp8266_pwm
+    pin: D8
+    id: buzzer
+  - platform: gpio
+    id: activity_led_output
+    pin: D7
+
+# Configure RTTTL for sound output
+rtttl:
+  output: buzzer
+
+# Configure binary light for LED
+light:
+  - platform: binary
+    id: activity_led
+    name: "${friendly_name} LED"
+    restore_mode: ALWAYS_OFF
+    output: activity_led_output
